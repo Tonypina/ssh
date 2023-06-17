@@ -1,0 +1,5 @@
+a.txt
+cliente
+cliente.c
+servidor
+servidor.c
