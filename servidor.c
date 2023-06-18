@@ -1,14 +1,3 @@
-/**
- * @file servidor.c
- * @author Piña Rossette Marco Antonio
- * @brief Servidor de servicio SSH
- * @version 0.1
- * @date 2023-06-16
- * 
- * @copyright Copyright (c) 2023
- * 
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -20,148 +9,150 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
+
 #define LENGTH 20000
+#define SIGFIN "SIGFIN\0"
 
 int main(int argc, char *argv[]) {
-
     int numbytes;
     char buf[100];
 
-    // del lado server tenemos 2 estructuras sockaddr_in
-    // una para el propio server y otra para la conexion cliente
-    // por lo que necesitamos 2 file descriptor
     int server_fd, cliente_fd;
-
-    // Estas son las 2 estructuras, la primera  llamada servidor,
-    // que se asociara a server_fd
-    // y la segunda estructura llamada cliente que se asociara a cliente_fd
-    struct sockaddr_in servidor;    // información sobre mi direccion (servidor)
-    struct sockaddr_in cliente; // información sobre la dirección del cliente
-
-    // La longitud o tamaño de servidor y de cliente
+    struct sockaddr_in servidor;
+    struct sockaddr_in cliente;
     int sin_size_servidor;
     int sin_size_cliente;
 
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-
         perror("socket");
         exit(1);
     }
 
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) == -1) {
-
         perror("Server-setsockopt() error!");
         exit(1);
     } else {
-
         printf("Server-setsockopt is OK...\n");
     }
 
-    servidor.sin_family = AF_INET;         // Ordenación de bytes de la máquina
-    servidor.sin_port = htons( atoi(argv[1]) );     // short, Ordenación de bytes de la red
-    servidor.sin_addr.s_addr = INADDR_ANY; // Rellenar con mi dirección IP
-    memset(&(servidor.sin_zero), '\0', 8); // Poner a cero el resto de la estructura
+    servidor.sin_family = AF_INET;
+    servidor.sin_port = htons(atoi(argv[1]));
+    servidor.sin_addr.s_addr = INADDR_ANY;
+    memset(&(servidor.sin_zero), '\0', 8);
 
-    sin_size_servidor = sizeof( servidor );
+    sin_size_servidor = sizeof(servidor);
     if (bind(server_fd, (struct sockaddr *)&servidor, sin_size_servidor) == -1) {
-        
         perror("bind");
         exit(1);
     }
 
-    if (listen(server_fd, 1) == -1){
-
-        perror("listen");
-        exit(1);
-    }
-
-    sin_size_cliente = sizeof( cliente );
-
-    if ((cliente_fd = accept(server_fd, (struct sockaddr *)&cliente, &sin_size_cliente)) == -1) {
-    
-        perror("accept");
-        exit(1);
-    }
-
-    printf("server: conexion cliente desde %s\n", inet_ntoa(cliente.sin_addr));
-
     while (1) {
 
-        // Limpia el buffer antes de recibir un comando
-        memset(buf, '\0', 100);
-
-        if ((numbytes=recv(cliente_fd, buf, 100-1, 0)) == -1) {
-
-            perror("recv");
+        if (listen(server_fd, 1) == -1) {
+            perror("listen");
             exit(1);
         }
 
-        if (strcmp("exit", buf) == 0) {
-            
-            char *msg_salida = "[Server] Saliendo...";
+        sin_size_cliente = sizeof(cliente);
 
-            if ( send(cliente_fd, msg_salida, strlen(msg_salida)-1, 0) < 0) {
-
-                printf("ERROR: al enviar la salida del comando al cliente\n");
-                exit(1);
-            
-            } else {
-            
-                printf("[Server] El cliente salió.");
-            }
-            break;
-        }
-
-        buf[numbytes] = ' ';
-        buf[numbytes+1] = '>';
-        buf[numbytes+2] = ' ';
-        buf[numbytes+3] = 'a';
-        buf[numbytes+4] = '.';
-        buf[numbytes+5] = 't';
-        buf[numbytes+6] = 'x';
-        buf[numbytes+7] = 't';
-        buf[numbytes+8] = '\0';
-
-        // printf("Received: %s\n",buf);
-
-        system(buf);
-
-        // Se lee el archivo a.txt
-        char* fs_name="a.txt";
-        char sdbuf[LENGTH]; // Send buffer
-        printf("[Server] Enviando salida al Cliente...\n");
-        FILE *fs = fopen(fs_name, "r");
-        
-        if (fs == NULL) {
-
-            printf("ERROR: File %s not found on server.\n", fs_name);
+        if ((cliente_fd = accept(server_fd, (struct sockaddr *)&cliente, &sin_size_cliente)) == -1) {
+            perror("accept");
             exit(1);
         }
 
-        bzero(sdbuf, LENGTH); 
-        
-        int fs_block_sz; 
-        while (( fs_block_sz = fread( sdbuf, sizeof(char), LENGTH, fs )) > 0 ) {
-            
-            if ( send(cliente_fd, sdbuf, fs_block_sz, 0) < 0) {
+        printf("server: conexion cliente desde %s\n", inet_ntoa(cliente.sin_addr));
 
-                printf("ERROR: al enviar la salida del comando al cliente\n");
+        while (1) {
+            memset(buf, '\0', 100);
+
+            if ((numbytes = recv(cliente_fd, buf, 100-1, 0)) == -1) {
+                perror("recv");
                 exit(1);
             }
-            bzero(sdbuf, LENGTH);
-        }
 
-        fclose( fs );
-        printf("[Server] Respuesta enviada!\n");
+            if (strcmp("exit", buf) == 0) {
+                char *msg_salida = "[Server] Saliendo...";
+
+                if (send(cliente_fd, msg_salida, strlen(msg_salida)-1, 0) < 0) {
+                    printf("ERROR: al enviar la salida del comando al cliente\n");
+                    exit(1);
+                } else {
+                    printf("[Server] El cliente salió.\n");
+                    break;
+                }
+            }
+
+            int pipefd[2];
+            pid_t pid;
+
+            if (pipe(pipefd) == -1) {
+                perror("pipe");
+                exit(1);
+            }
+
+            pid = fork();
+            if (pid == -1) {
+                perror("fork");
+                exit(1);
+            
+            } else if (pid == 0) {  // Proceso hijo
+                close(pipefd[0]);  // Cerramos el extremo de lectura del pipe
+
+                // Redireccionamos la salida estándar al extremo de escritura del pipe
+                if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
+                    perror("dup2");
+                    exit(1);
+                }
+
+                // Ejecutamos el comando usando exec
+                if (execlp("/bin/sh", "sh", "-c", buf, NULL) == -1) {
+                    perror("execlp");
+                    exit(1);
+                }
+
+                close(pipefd[1]);
+                exit(0);
+            } else {  // Proceso padre
+                close(pipefd[1]);  // Cerramos el extremo de escritura del pipe
+
+                printf("[Server] Ejecutando comando...\n");
+
+                // Leemos la salida del comando del extremo de lectura del pipe
+                char sdbuf[LENGTH];
+                int total_bytes = 0;
+                int bytes_read;
+
+                while ((bytes_read = read(pipefd[0], sdbuf + total_bytes, LENGTH - total_bytes)) > 0) {
+                    total_bytes += bytes_read;
+                }
+
+                if (bytes_read == -1) {
+                    perror("read");
+                    exit(1);
+                }
+
+                close(pipefd[0]);
+
+                printf("[Server] Enviando salida al Cliente...\n");
+
+                // Enviamos la salida al cliente
+                int bytes_sent = 0;
+                int bytes_remaining = total_bytes;
+
+                if (send(cliente_fd, sdbuf, total_bytes, 0) == -1) {
+                    perror("send");
+                    exit(1);
+                }
+
+                printf("[Server] Respuesta enviada!\n");
+            }
+        }
+    
     }
-
-    close(cliente_fd);
-
+    
     close(server_fd);
+    close(cliente_fd);
     shutdown(server_fd, SHUT_RDWR);
 
-    // Termina con exit(0) que significa terminacion exitosa
     exit(0);
-
-    return 0;
 }

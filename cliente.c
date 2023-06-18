@@ -21,7 +21,7 @@
 #include <stdbool.h>
 
 #define MAXDATASIZE 100
-#define MAXDATASIZE_RESP 20000
+#define MAX_BUFFER_SIZE 20000
 
 int main(int argc, char *argv[])
 {
@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
     int len_comando;
     // Estos 2 son para la respuesta
     int numbytes;
-    char buf[MAXDATASIZE_RESP];
+    char buf[MAX_BUFFER_SIZE];
     int sockfd;  
     struct hostent *he;
     struct sockaddr_in cliente; // información de la dirección de destino 
@@ -63,7 +63,9 @@ int main(int argc, char *argv[])
     }
     
     
-    while (SEXIT) {
+    while (1) {
+
+        printf("\nServer$ ");
 
         /* Se lee el comando del teclado */
         fgets(comando,MAXDATASIZE-1,stdin);
@@ -72,30 +74,27 @@ int main(int argc, char *argv[])
         len_comando = strlen(comando) - 1;
         comando[len_comando] = '\0';
 
-        if (strcmp("exit", comando) == 0) {
-            SEXIT = !SEXIT;
-        }
-        
-        /* Se imprime el comando que ingreso el cliente */
-        printf("Comando: %s\n",comando);
-
         /* Se envia el comando al server */
         if (send(sockfd,comando, len_comando, 0) == -1) {
             perror("send()");
             exit(1);
-        } else {
-            printf("Comando enviado...\n");
         }
-        
+
+        if (strcmp("exit", comando) == 0) {
+            break;
+        }
+
         // Si el send no devuelve error continua y lo que falta por hacer
         // es leer la respuesta
-        if ((numbytes=recv(sockfd, buf, MAXDATASIZE_RESP-1, 0)) == -1) {
+        if (numbytes = recv(sockfd, buf, MAX_BUFFER_SIZE - 1, 0) == -1) {
             perror("recv");
             exit(1);
         }
 
+        printf("%s", buf);
+        memset(buf, '\0', MAX_BUFFER_SIZE);
+
         buf[numbytes] = '\0';
-        printf("Recibido:\n%s\n",buf);
     }
     
     // Si el recv no devuelve error continua y lo que falta por hacer
