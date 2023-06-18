@@ -1,3 +1,13 @@
+/**
+ * @file servidor.c
+ * @author Piña Rossette Marco Antonio
+ * @brief Código de servidor
+ * @version 0.1
+ * @date 2023-06-17
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
