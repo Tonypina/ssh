@@ -1,8 +1,8 @@
 /**
  * @file cliente.c
  * @author Piña Rossette Marco Antonio
- * @brief Cliente de servicio SSH
- * @version 0.1
+ * @brief Cliente de servicio de terminal remota
+ * @version 1.0
  * @date 2023-06-16
  * 
  * @copyright Copyright (c) 2023

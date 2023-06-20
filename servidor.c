@@ -1,13 +1,14 @@
 /**
  * @file servidor.c
  * @author Piña Rossette Marco Antonio
- * @brief Código de servidor
- * @version 0.1
- * @date 2023-06-17
+ * @brief Servidor de terminal remota (Linux)
+ * @version 1.0
+ * @date 2023-06-19
  * 
  * @copyright Copyright (c) 2023
  * 
  */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -117,11 +118,12 @@ int main(int argc, char *argv[]) {
                 // Ejecutamos el comando usando exec
                 if (execlp("/bin/sh", "sh", "-c", buf, NULL) == -1) {
                     perror("execlp");
+                    char *error_msg = "Comando no encontrado o no se pudo ejecutar.\n";
+                    write(pipefd[1], error_msg, strlen(error_msg));
+                    close(pipefd[1]);
                     exit(1);
                 }
 
-                close(pipefd[1]);
-                exit(0);
             } else {  // Proceso padre
                 close(pipefd[1]);  // Cerramos el extremo de escritura del pipe
 
@@ -149,9 +151,19 @@ int main(int argc, char *argv[]) {
                 int bytes_sent = 0;
                 int bytes_remaining = total_bytes;
 
-                if (send(cliente_fd, sdbuf, total_bytes, 0) == -1) {
-                    perror("send");
-                    exit(1);
+                if (total_bytes == 0) {
+                    char *error_msg = "Comando no encontrado o no se pudo ejecutar.\n";
+                    bytes_remaining = strlen(error_msg);
+                    strncpy(sdbuf, error_msg, LENGTH);
+                }
+
+                while (bytes_remaining > 0) {
+                    bytes_sent = send(cliente_fd, sdbuf + bytes_sent, bytes_remaining, 0);
+                    if (bytes_sent == -1) {
+                        perror("send");
+                        exit(1);
+                    }
+                    bytes_remaining -= bytes_sent;
                 }
 
                 printf("[Server] Respuesta enviada!\n");
